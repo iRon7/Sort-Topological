@@ -141,7 +141,6 @@ This parameter is only required for objects which indirectly references the depe
 ### <a id="-inputobject">**`-InputObject <Object>`**</a>
 
 A list of objects to be topologically sorted.
-```
 
 <table>
 <tr><td>Type:</td><td><a href="https://docs.microsoft.com/en-us/dotnet/api/System.Object">Object</a></td></tr>

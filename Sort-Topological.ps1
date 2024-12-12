@@ -102,7 +102,7 @@ To topological sort the direct dependency list, only the name of the property th
     Function2 {@{Name=Function4; Dependency=System.Object[]}, @{Name=Function5; Dependency=System.Object[]}}
 
 .PARAMETER InputObject
-    A list of objects to be topologically sorted.
+A list of objects to be topologically sorted.
 
 .PARAMETER EdgeName
 The name of the property that holds the dependent vertices (see: [-VertexName parameter]).
