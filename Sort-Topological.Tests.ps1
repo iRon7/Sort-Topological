@@ -143,10 +143,10 @@ Describe 'Sort-Topological' {
             $List = [List[Object]]::new()
         }
 
-        # It 'ServicesDependedOn' -foreach $service.ServicesDependedOn {
-        #     $List | Should contain $_
-        #     $List.Add($_)
-        # }
+        It 'ServicesDependedOn' -foreach $services.ServicesDependedOn {
+            $List | Should contain $_
+            $List.Add($_)
+        }
 
     }
 
