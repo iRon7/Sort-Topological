@@ -1,133 +1,91 @@
-<!-- markdownlint-disable MD033 -->
-# Sort-Topological
+<!-- MarkdownLint-disable MD033 -->
+# Set-LineNumbers
 
 Sort-Topological
 
 ## Syntax
 
 ```PowerShell
-Sort-Topological
-    -EdgeName <String>
-    [-IdName <String>]
-    [-InputObject <Object>]
+Set-LineNumbers
+    [-Script <String>]
+    [-Remove]
     [<CommonParameters>]
 ```
 
 ## Description
 
-Orders vertices such that for every directed edge u-v, vertex u comes before v in the ordering.
-
-This `Sort-Topological`, supports two ways of linking dependencies to other objects:
-
-* **Direct** the property defined by the [-EdgeName parameter](#-edgename-parameter) holds a single or a list of objects which reference
-directly into any other object in the list supplied by the [-InputObject parameter](#-inputobject-parameter).
-
-* **Indirect** the property defined by the [-EdgeName parameter](#-edgename-parameter) holds a single or a list of `[ValueType]`s
-(such as an integer) or `[String]`s which indirectly refers to any other object in the list supplied by the
-[-InputObject parameter](#-inputobject-parameter) where the value of the property defined by the [-IdName parameter](#-idname-parameter) is equal.
+Set-LineNumbers adds, update or remove line numbers to a powershell script
+without affecting the functionality of the code.
+This might come in handy when you want to analyze a script or share it with others.
 
 ## Examples
 
-### Example 1: Topological sort services
+### Example 1: Adding line numbers
 
 
-```PowerShell
-Get-Service | Sort-Topological -Dependency ServicesDependedOn # -IdName Name
-```
-
-### Example 2: Indirect dependencies
-
-
-A list with indirect dependencies is often build during design-time using e.g. the [`ConvertFrom-Json`](https://go.microsoft.com/fwlink/?LinkID=2096606) cmdlet:
+Given a script that might look like:
 
 ```PowerShell
-$List = ConvertFrom-Json '
-    [
-        { "Name": "Function1", "Dependency": ["Function3"] },
-        { "Name": "Function2", "Dependency": ["Function4", "Function5"] },
-        { "Name": "Function3", "Dependency": [] },
-        { "Name": "Function4", "Dependency": ["Function1", "Function3", "Function5"] },
-        { "Name": "Function5", "Dependency": ["Function1"] }
-    ]'
-```
-
-To topological sort the indirect dependency list, the following parameters are required:
-
-* The name of the property that holds the (unique) identification of each object (see: [-IdName parameter](#-idname-parameter))
-* The name of the property that holds the dependent vertices (see: [-VertexName parameter](#-vertexname-parameter))
-
-```PowerShell
-$List | Sort-Topological -Dependency Dependency -Id Name
-
-Name      Dependency
-----      ----------
-Function3 {}
-Function1 {Function3}
-Function5 {Function1}
-Function4 {Function1, Function3, Function5}
-Function2 {Function4, Function5}
-```
-
-### Example 3: Direct dependencies
-
-
-A list with direct dependencies can only be build during run-time as it requires the objects to exists before they
-could be linked:
-
-```PowerShell
-$List = 1..5 | Foreach-Object {
-    [PSCustomObject]@{ Name = "Function$_"; Dependency = $Null }
+$Script = @'
+function CountChar([String]$Text, [Char]$Char) {
+    $Text.ToCharArray() | Where-Object { $_ -eq $Char } | Measure-Object | Select-Object -ExpandProperty Count
 }
 
-$List[0].Dependency = @($List[2])
-$List[1].Dependency = @($List[3], $List[4])
-$List[2].Dependency = @()
-$List[3].Dependency = @($List[0], $List[2], $List[4])
-$List[4].Dependency = @($List[0])
+$Text = @"
+Finished files are the result of years
+of scientific study combined with the
+experience of many years.
+"@
+CountChar -Text $Text -Char 'f'
+'@
 ```
 
-To topological sort the direct dependency list, only the name of the property that holds the dependent vertices
-(see: [-VertexName parameter](#-vertexname-parameter)) is required.
+The following command will add line numbers to the script:
 
 ```PowerShell
-$List | Sort-Topological -Dependency Dependency -Id Name
+$Numbered = $Script | Set-LineNumbers
+$Numbered
 
-Name      Dependency
-----      ----------
-Function3 {}
-Function1 {@{Name=Function3; Dependency=System.Object[]}}
-Function5 {@{Name=Function1; Dependency=System.Object[]}}
-Function4 {@{Name=Function1; Dependency=System.Object[]}, @{Name=Function3; Dependency=System.Object[]}, @{Name=Function5; Dependency=SystΓÇª
-Function2 {@{Name=Function4; Dependency=System.Object[]}, @{Name=Function5; Dependency=System.Object[]}}
+<# 01 #> function CountChar([String]$Text, [Char]$Char) {
+<# 02 #>     $Text.ToCharArray() | Where-Object { $_ -eq $Char } | Measure-Object | Select-Object -ExpandProperty Count
+<# 03 #> }
+<# 04 #>
+<# 05 #> $Text = @"
+Finished files are the result of years
+of scientific study combined with the
+experience of many years.
+"@
+<# 10 #> CountChar -Text $Text -Char 'f'
+```
+
+> [!Note]
+> Line numbers `06` till `09` are suppressed as line `05` is a multiline here-string.
+
+### Example 2: updated line numbers
+
+
+In case you have changed a script with line numbers and would like to renumber the script,
+you might simply call the invoke the `Set-LineNumbers` cmdlet again.
+The example below adds the comment "# Count the F's" to the script and renumbers it:
+
+```PowerShell
+"# Count the F's", $Numbered | Set-LineNumbers
+```
+
+### Example 3: Removing line numbers
+
+
+In case you copy or download a script with line numbers and would like to remove them:
+
+```PowerShell
+$Numbered | Set-LineNumbers -Remove
 ```
 
 ## Parameters
 
-### <a id="-edgename">**`-EdgeName <String>`**</a>
+### <a id="-script">**`-Script <String>`**</a>
 
-The name of the property that holds the dependent vertices (see: [-VertexName parameter](#-vertexname-parameter)).
-The concerned property might either contain any number of directly referenced objects or any number of indirect
-objects links where a `[String]` or `[ValueType]` links the dependency to object with the specific object id
-(see: [-IdName parameter](#-idname-parameter)).
-
-<table>
-<tr><td>Type:</td><td><a href="https://docs.microsoft.com/en-us/dotnet/api/System.String">String</a></td></tr>
-<tr><td>Mandatory:</td><td>True</td></tr>
-<tr><td>Position:</td><td>Named</td></tr>
-<tr><td>Default value:</td><td></td></tr>
-<tr><td>Accept pipeline input:</td><td>False</td></tr>
-<tr><td>Accept wildcard characters:</td><td>False</td></tr>
-</table>
-
-### <a id="-idname">**`-IdName <String>`**</a>
-
-The name of the property that holds the (unique) identification of each object.
-This parameter is only required for objects which indirectly references the dependencies.
-
-> [!Tip]
->
-> Even the [-VertexName parameter](#-vertexname-parameter) isn't required for direct dependencies, you might still consider to do so.
-> This way, error messages refer to the object identification rather than the index of the object.
+A string that contains the script to add, update or remove line numbers.
 
 <table>
 <tr><td>Type:</td><td><a href="https://docs.microsoft.com/en-us/dotnet/api/System.String">String</a></td></tr>
@@ -138,12 +96,12 @@ This parameter is only required for objects which indirectly references the depe
 <tr><td>Accept wildcard characters:</td><td>False</td></tr>
 </table>
 
-### <a id="-inputobject">**`-InputObject <Object>`**</a>
+### <a id="-remove">**`-Remove`**</a>
 
-A list of objects to be topologically sorted.
+If set, the line numbers will be removed from the script.
 
 <table>
-<tr><td>Type:</td><td><a href="https://docs.microsoft.com/en-us/dotnet/api/System.Object">Object</a></td></tr>
+<tr><td>Type:</td><td><a href="https://docs.microsoft.com/en-us/dotnet/api/System.Management.Automation.SwitchParameter">SwitchParameter</a></td></tr>
 <tr><td>Mandatory:</td><td>False</td></tr>
 <tr><td>Position:</td><td>Named</td></tr>
 <tr><td>Default value:</td><td></td></tr>
@@ -153,10 +111,10 @@ A list of objects to be topologically sorted.
 
 ## Inputs
 
-PSCustomObject[]
+String
 
 ## Outputs
 
-PSCustomObject[]
+String
 
 [comment]: <> (Created with Get-MarkdownHelp: Install-Script -Name Get-MarkdownHelp)
