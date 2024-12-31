@@ -7,7 +7,7 @@ Sort-Topological
 
 ```PowerShell
 Sort-Topological
-    [-InputObject <Object>]
+    -InputObject <Object>
     -EdgeName <String>
     [-IdName <String>]
     [<CommonParameters>]
@@ -15,7 +15,7 @@ Sort-Topological
 
 ## Description
 
-Orders vertices such that for every directed edge u-v, vertex u comes before v in the ordering
+Orders vertices such that for every directed edge u-v, vertex u comes before v in the ordering.
 
 ## Examples
 
@@ -57,7 +57,7 @@ Such dependencies are usually created during run time like:
 
 <table>
 <tr><td>Type:</td><td><a href="https://docs.microsoft.com/en-us/dotnet/api/System.Object">Object</a></td></tr>
-<tr><td>Mandatory:</td><td>False</td></tr>
+<tr><td>Mandatory:</td><td>True</td></tr>
 <tr><td>Position:</td><td>Named</td></tr>
 <tr><td>Default value:</td><td></td></tr>
 <tr><td>Accept pipeline input:</td><td>False</td></tr>
