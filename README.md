@@ -1,91 +1,82 @@
 <!-- MarkdownLint-disable MD033 -->
-# Set-LineNumbers
+# Sort-Topological
 
 Sort-Topological
 
 ## Syntax
 
 ```PowerShell
-Set-LineNumbers
-    [-Script <String>]
-    [-Remove]
+Sort-Topological
+    [-InputObject <Object>]
+    -EdgeName <String>
+    [-IdName <String>]
     [<CommonParameters>]
 ```
 
 ## Description
 
-Set-LineNumbers adds, update or remove line numbers to a powershell script
-without affecting the functionality of the code.
-This might come in handy when you want to analyze a script or share it with others.
+Orders vertices such that for every directed edge u-v, vertex u comes before v in the ordering
 
 ## Examples
 
-### Example 1: Adding line numbers
+### Example 1: Order services
 
 
-Given a script that might look like:
-
-```PowerShell
-$Script = @'
-function CountChar([String]$Text, [Char]$Char) {
-    $Text.ToCharArray() | Where-Object { $_ -eq $Char } | Measure-Object | Select-Object -ExpandProperty Count
-}
-
-$Text = @"
-Finished files are the result of years
-of scientific study combined with the
-experience of many years.
-"@
-CountChar -Text $Text -Char 'f'
-'@
-```
-
-The following command will add line numbers to the script:
+Order the service list based on the (direct) `ServicesDependedOn` property.
 
 ```PowerShell
-$Numbered = $Script | Set-LineNumbers
-$Numbered
-
-<# 01 #> function CountChar([String]$Text, [Char]$Char) {
-<# 02 #>     $Text.ToCharArray() | Where-Object { $_ -eq $Char } | Measure-Object | Select-Object -ExpandProperty Count
-<# 03 #> }
-<# 04 #>
-<# 05 #> $Text = @"
-Finished files are the result of years
-of scientific study combined with the
-experience of many years.
-"@
-<# 10 #> CountChar -Text $Text -Char 'f'
-```
-
-> [!Note]
-> Line numbers `06` till `09` are suppressed as line `05` is a multiline here-string.
-
-### Example 2: updated line numbers
-
-
-In case you have changed a script with line numbers and would like to renumber the script,
-you might simply call the invoke the `Set-LineNumbers` cmdlet again.
-The example below adds the comment "# Count the F's" to the script and renumbers it:
-
-```PowerShell
-"# Count the F's", $Numbered | Set-LineNumbers
-```
-
-### Example 3: Removing line numbers
-
-
-In case you copy or download a script with line numbers and would like to remove them:
-
-```PowerShell
-$Numbered | Set-LineNumbers -Remove
+$Services = Get-Service
+$Ordered = $Services | Sort-Topological -Dependency ServicesDependedOn
 ```
 
 ## Parameters
 
-### <a id="-script">**`-Script <String>`**</a>
+### <a id="-inputobject">**`-InputObject <Object>`**</a>
 
-A string that contains the script to add, update or remove line numbers.
+A list of objects to be topologically sorted.
+
+The name of the property that contains the name (identification) used for the DependencyList
+```
+
+There are two ways a dependency list might be setup:
+
+1. *Indirect by id or name*
+Each dependency in the list is linked to a vertex (object node) by an id or a name. For instance a class extension which is depended on a base class that is defined by the base class *name*.
+
+Class example
+
+Such dependencies might be build during run time like:
+
+The Sort-Topological cmdlet automatically recognizes each way and requires the
+
+1. *By reference*
+Each dependency in the list is directly linked to a vertex (object node) where the concerned vertex is dependent on. For instance the dependentServices property of a [Service object`] that contains a list of (recursive) service *objects* retrieved from [`Get-Service`](https://go.microsoft.com/fwlink/?LinkID=2096496) cmdlet.
+Such dependencies are usually created during run time like:
+
+> !Tip
+> The VertexId is not required in case the dependencies are directly linked to vertices (object nodes). Yet, supplying the VertexId might help to easier identify a Circular┬ádependency.
+
+<table>
+<tr><td>Type:</td><td><a href="https://docs.microsoft.com/en-us/dotnet/api/System.Object">Object</a></td></tr>
+<tr><td>Mandatory:</td><td>False</td></tr>
+<tr><td>Position:</td><td>Named</td></tr>
+<tr><td>Default value:</td><td></td></tr>
+<tr><td>Accept pipeline input:</td><td>False</td></tr>
+<tr><td>Accept wildcard characters:</td><td>False</td></tr>
+</table>
+
+### <a id="-edgename">**`-EdgeName <String>`**</a>
+
+<table>
+<tr><td>Type:</td><td><a href="https://docs.microsoft.com/en-us/dotnet/api/System.String">String</a></td></tr>
+<tr><td>Mandatory:</td><td>True</td></tr>
+<tr><td>Position:</td><td>Named</td></tr>
+<tr><td>Default value:</td><td></td></tr>
+<tr><td>Accept pipeline input:</td><td>False</td></tr>
+<tr><td>Accept wildcard characters:</td><td>False</td></tr>
+</table>
+
+### <a id="-idname">**`-IdName <String>`**</a>
 
 <table>
 <tr><td>Type:</td><td><a href="https://docs.microsoft.com/en-us/dotnet/api/System.String">String</a></td></tr>
@@ -96,25 +87,12 @@ A string that contains the script to add, update or remove line numbers.
 <tr><td>Accept wildcard characters:</td><td>False</td></tr>
 </table>
 
-### <a id="-remove">**`-Remove`**</a>
-
-If set, the line numbers will be removed from the script.
-
-<table>
-<tr><td>Type:</td><td><a href="https://docs.microsoft.com/en-us/dotnet/api/System.Management.Automation.SwitchParameter">SwitchParameter</a></td></tr>
-<tr><td>Mandatory:</td><td>False</td></tr>
-<tr><td>Position:</td><td>Named</td></tr>
-<tr><td>Default value:</td><td></td></tr>
-<tr><td>Accept pipeline input:</td><td>False</td></tr>
-<tr><td>Accept wildcard characters:</td><td>False</td></tr>
-</table>
-
 ## Inputs
 
-String
+PSCustomObject[]
 
 ## Outputs
 
-String
+PSCustomObject[]
 
 [comment]: <> (Created with Get-MarkdownHelp: Install-Script -Name Get-MarkdownHelp)
