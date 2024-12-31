@@ -36,7 +36,6 @@ $Ordered = $Services | Sort-Topological -Dependency ServicesDependedOn
 A list of objects to be topologically sorted.
 
 The name of the property that contains the name (identification) used for the DependencyList
-```
 
 There are two ways a dependency list might be setup:
 
