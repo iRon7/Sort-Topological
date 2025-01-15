@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.Version 0.1.0
+.Version 0.1.1
 .Guid 19631007-48a4-4acc-b0bc-c1a23796eb24
 .Author Ronald Bode (iRon)
 .Description Orders vertices such that for every directed edge u-v, vertex u comes before v in the ordering.
@@ -23,15 +23,6 @@ Sort-Topological
 .DESCRIPTION
 Orders vertices such that for every directed edge u-v, vertex u comes before v in the ordering.
 
-This `Sort-Topological`, supports two ways of linking dependencies to other objects:
-
-* **Direct** the property defined by the [-EdgeName parameter] holds a single or a list of objects which reference
-   directly into any other object in the list supplied by the [-InputObject parameter].
-
-* **Indirect** the property defined by the [-EdgeName parameter] holds a single or a list of `[ValueType]`s
-   (such as an integer) or `[String]`s which indirectly refers to any other object in the list supplied by the
-   [-InputObject parameter] where the value of the property defined by the [-IdName parameter] is equal.
-
 .INPUTS
 PSCustomObject[]
 
@@ -39,138 +30,183 @@ PSCustomObject[]
 PSCustomObject[]
 
 .EXAMPLE
-# Topological sort services
+# Custom list with dependencies
 
-    Get-Service | Sort-Topological -Dependency ServicesDependedOn # -IdName Name
+Sorting the following list of objects with dependencies:
 
-.EXAMPLE
-# Indirect dependencies
+    $List =
+        [PSCustomObject]@{ Id = 101; Dependency = 103 },
+        [PSCustomObject]@{ Id = 102; Dependency = 104, 105 },
+        [PSCustomObject]@{ Id = 103; Dependency = $Null },
+        [PSCustomObject]@{ Id = 104; Dependency = 105, 103, 101 },
+        [PSCustomObject]@{ Id = 105; Dependency = 101 }
 
-A list with indirect dependencies is often build during design-time using e.g. the [ConvertFrom-Json] cmdlet:
+    $List | Sort-Topological -Dependency Dependency -Name Id
 
-    $List = ConvertFrom-Json '
-        [
-            { "Name": "Function1", "Dependency": ["Function3"] },
-            { "Name": "Function2", "Dependency": ["Function4", "Function5"] },
-            { "Name": "Function3", "Dependency": [] },
-            { "Name": "Function4", "Dependency": ["Function1", "Function3", "Function5"] },
-            { "Name": "Function5", "Dependency": ["Function1"] }
-        ]'
+Results in:
 
-To topological sort the indirect dependency list, the following parameters are required:
-
-* The name of the property that holds the (unique) identification of each object (see: [-IdName parameter])
-* The name of the property that holds the dependent vertices (see: [-VertexName parameter])
-
-    $List | Sort-Topological -Dependency Dependency -Id Name
-
-    Name      Dependency
-    ----      ----------
-    Function3 {}
-    Function1 {Function3}
-    Function5 {Function1}
-    Function4 {Function1, Function3, Function5}
-    Function2 {Function4, Function5}
+     Id Dependency
+     -- ----------
+    103
+    101 103
+    105 101
+    104 {105, 103, 101}
+    102 {104, 105}
 
 .EXAMPLE
-# Direct dependencies
+# Class extension dependencies
 
-A list with direct dependencies can only be build during run-time as it requires the objects to exists before they
-could be linked:
+Consider a list of classes where some of the classes are extended (dependent) on other classes.
 
-    $List = 1..5 | Foreach-Object {
-        [PSCustomObject]@{ Name = "Function$_"; Dependency = $Null }
-    }
+    $Script = @'
+        Class Class1 : Class3 { }
+        Class Class2 : Class4, Class5 { }
+        Class Class3 { }
+        Class Class4 : Class5, Class3, Class1 { }
+        Class Class5 : Class1 { }
+    '@
 
-    $List[0].Dependency = @($List[2])
-    $List[1].Dependency = @($List[3], $List[4])
-    $List[2].Dependency = @()
-    $List[3].Dependency = @($List[0], $List[2], $List[4])
-    $List[4].Dependency = @($List[0])
+    $Ast = [System.Management.Automation.Language.Parser]::ParseInput($Script, [ref]$null, [ref]$null)
+    $Classes = $Ast.EndBlock.Statements
+    $Sorted = $Classes | Sort-Topological -IdName Name -DependencyName { $_.BaseTypes.TypeName.Name }
+    $Sorted.Name
 
-To topological sort the direct dependency list, only the name of the property that holds the dependent vertices
-(see: [-VertexName parameter]) is required.
+    Class3
+    Class1
+    Class5
+    Class4
+    Class2
 
-    $List | Sort-Topological -Dependency Dependency -Id Name
 
-    Name      Dependency
-    ----      ----------
-    Function3 {}
-    Function1 {@{Name=Function3; Dependency=System.Object[]}}
-    Function5 {@{Name=Function1; Dependency=System.Object[]}}
-    Function4 {@{Name=Function1; Dependency=System.Object[]}, @{Name=Function3; Dependency=System.Object[]}, @{Name=Function5; Dependency=Syst…
-    Function2 {@{Name=Function4; Dependency=System.Object[]}, @{Name=Function5; Dependency=System.Object[]}}
+.EXAMPLE
+# Topological sort of services
+Order the service list based on the `ServicesDependedOn` property.
+
+    $Services = Get-Service
+    $Ordered = $Services | Sort-Topological -Dependency ServicesDependedOn
 
 .PARAMETER InputObject
 A list of objects to be topologically sorted.
 
 .PARAMETER EdgeName
-The name of the property that holds the dependent vertices (see: [-VertexName parameter]).
-The concerned property might either contain any number of directly referenced objects or any number of indirect
-objects links where a `[String]` or `[ValueType]` links the dependency to object with the specific object id
-(see: [-IdName parameter]).
+The name (or path) of the property that contains the dependency list.
+If the EdgeName is a script block, the script block is executed for each vertex to retrieve the dependency list.
+
+> [!IMPORTANT]
+> To prevent code injection, the script block should only contain safe paths in the form of
+> `$_.<verbatim path>` or `$PSItem.<verbatim path>`, e.g.: `$_.BaseTypes.TypeName.Name`.
+
+There are two ways a dependency list might be setup:
+
+1. By property (id)
+2. By object
+
+The Sort-Topological cmdlet automatically recognizes each way.
+
+**By property (id)**
+Each dependency in the list is linked to a vertex (object node) by an id or a name.
+For instance a class extension which is depended on a base class that is defined by the base class *name*.
+
+**By object**
+Each dependency in the list directly refers to an other (vertex) object in the `$InputObject` list.
+For instance the [`DependentServices` property][1] of a [`ServiceController` object][2] retrieved from
+[Get-Service] cmdlet that contains a (recursive) list of other service *objects* that are directly linked
+by their reference.
+
+Such dependencies might only be linked during run time like:
+
+    $ByObject = 101..105 | Foreach-Object {
+        [PSCustomObject]@{ Id = $_; Name = "Function$_"; Link = $Null }
+    }
+
+    $ByObject[0].Link = @($ByObject[2])
+    $ByObject[1].Link = @($ByObject[3], $ByObject[4])
+    $ByObject[2].Link = @()
+    $ByObject[3].Link = @($ByObject[0], $ByObject[2], $ByObject[4])
+    $ByObject[4].Link = @($ByObject[0])
 
 .PARAMETER IdName
-The name of the property that holds the (unique) identification of each object.
-This parameter is only required for objects which indirectly references the dependencies.
+The name of the property that contains the property name used to identify the object in the `InputObject` list
+The `IdName` parameter is required when the dependencies are linked **by property (id)**.
 
-> [!Tip]
->
-> Even the [-VertexName parameter] isn't required for direct dependencies, you might still consider to do so.
-> This way, error messages refer to the object identification rather than the index of the object.
+> [!TIP]
+> The `IdName` is not required in case the dependencies are linked **by object**.
+> Yet, supplying the `IdName` might help to easier identify an object in a (circular) sort error message.
+
+.LINK
+[1]: https://learn.microsoft.com/en-us/dotnet/api/system.serviceprocess.servicecontroller.dependentservices "ServiceController"
+[2]: https://learn.microsoft.com/dotnet/api/system.serviceprocess.servicecontroller "DependentServices"
 #>
 
 Using Namespace System.Management.Automation
+Using Namespace System.Management.Automation.Language
 Using Namespace System.Collections
 Using Namespace System.Collections.Generic
 
 [Diagnostics.CodeAnalysis.SuppressMessage('PSUseApprovedVerbs', '', Scope = 'function', Target = '' )]
-[CmdletBinding(HelpURI = 'https://github.com/iRon7/Sort-Topological/blob/main/README.md')]Param(
-    [Parameter(Mandatory = $True)][Alias('DependencyName')][String]$EdgeName,
-    [Alias('NameId')][String]$IdName,
-    [Parameter(ValueFromPipeline = $True)]$InputObject
+[CmdletBinding()]Param(
+    [Parameter(ValueFromPipeline = $True, Mandatory = $True)]$InputObject,
+    [Parameter(Position = 0, Mandatory = $True)][Alias('DependencyName')]$EdgeName,
+    [Parameter(Position = 1)][Alias('NameId')][String]$IdName
 )
 
-function PSError($Exception, $Id = 'TopologicalSortError', $Category = 'InvalidArgument', $Target = $Vertex) {
+function PSError($Exception, $Id = 'TopologicalSortError', $Target = $Vertex, $Category = 'InvalidArgument') {
     $PSCmdlet.ThrowTerminatingError([ErrorRecord]::new($Exception, $Id, $Category, $Target))
 }
 
-$GetId = {
-    if ($_ -is [ValueType] -or $_ -is [String]) { $Value = $_ }
+if ($EdgeName -is [ScriptBlock]) { # Prevent code injection
+    $Ast = [System.Management.Automation.Language.Parser]::ParseInput($EdgeName, [ref]$null, [ref]$null)
+    $Expression = $Ast.EndBlock.Statements.PipelineElements.Expression
+    While ($Expression -is [MemberExpressionAst] -and $Expression.Member -is [StringConstantExpressionAst]) {
+        $Expression = $Expression.Expression
+    }
+    if ($Expression -isnot [VariableExpressionAst] -or $Expression.VariablePath.UserPath -notin '_', 'PSItem') {
+        PSError "The { $Expression } expression should contain safe path." 'InvalidIdExpression' $Expression
+    }
+}
+elseif ($Null -ne $IdName -and $IdName -isnot [String]) { $IdName = "$IdName" }
+
+Function FormatId ($Vertex) {
+    if ($Vertex -is [ValueType] -or $Vertex -is [String]) { $Value = $Vertex }
     elseif (@($_.PSObject.Properties.Name).Contains($IdName)) { $Value = $_.PSObject.Properties[$IdName].Value }
-    else { return "[$(@($Input).IndexOf($_))]" }
+    else { return "[$(@($List).IndexOf($Vertex))]" }
     if ($Value -is [String]) { """$Value""" } else { $Value }
 }
 
-$Lookup = @{}
-
+$ById = $Null
 $Sorted = [List[Object]]::new()
-if ($Input -isnot [iEnumerable]) { return $Input }
+if ($Input) { $List = $Input } else { $List = $InputObject }
+if ($List -isnot [iEnumerable]) { return $List }
 $EdgeCount = 0
-while ($Sorted.get_Count() -lt $Input.get_Count()) {
+while ($Sorted.get_Count() -lt $List.get_Count()) {
     $Stack = [Stack]::new()
-    $Enumerator = $Input.GetEnumerator()
+    $Enumerator = $List.GetEnumerator()
     while ($Enumerator.MoveNext()) {
-        $Current = $Enumerator.Current
-        if ($Current -isnot [ValueType] -and $Current -isnot [String]) { $Vertex = $Current }
-        else {
-            if (-not $IdName) { PSError 'Indirect dependencies require the IdName parameter.' 'MissingName' }
-            if ($Lookup.Count -eq 0) { $Input.foreach{
-                if ($Lookup.Contains($IdName)) { PSError 'Duplicate id: $(@($_).foreach($GetId))' 'DuplicateId' }
-                $Lookup[$_.PSObject.Properties[$IdName].Value] = $_
-            } }
-            if ($Lookup.contains($Current)) { $Vertex = $Lookup[$Current] }
-            else{ PSError "Unknown vertex id: $(@($Current).foreach($GetId))." 'UnknownVertex' }
-        }
+        $Vertex = $Enumerator.Current
         if($Sorted.Contains($Vertex)) { continue }
-        $Edges = $Vertex.PSObject.Properties[$EdgeName].Value
-        if ($Null -eq $Edges) { $Edges = @() } # No Edges
-        elseif ($Edges -isnot [iList]) { $Edges = @($Edges) }
+        $Edges = [List[Object]]::new()
+        if ($EdgeName -is [ScriptBlock]) { $Edges = $Vertex.foreach($EdgeName) }
+        else { $Edges = $Vertex.PSObject.Properties[$EdgeName].Value }
+        if ($Edges -isnot [iList]) { $Edges = @($Edges) }
+        if ($Null -eq $ById -and $Edges.Count -gt 0) {
+            if ($Edges[0] -is [ValueType] -or $Edges[0] -is [String]) {
+                if (-not $IdName) { PSError 'Dependencies by id require the IdName parameter.' 'MissingIdName' }
+                $ById = @{}
+                foreach ($Item in $List) { $ById[$Item.PSObject.Properties[$IdName].Value] = $Item }
+            } else { $ById = $False }
+        }
+        if ($ById) {
+            $Ids = $Edges; $Edges = [List[Object]]::new()
+            foreach ($Id in $Ids) {
+                if ($Null -eq $Id) { } elseif ($ById.contains($Id)) { $Edges.Add($ById[$Id]) }
+                else{ PSError "Unknown vertex id: $(FormatId $Id)." 'UnknownVertex' }
+            }
+        }
         if ($Stack.Count -gt 0 -or $Edges.Count -eq $EdgeCount) {
-            $ExistsAt = if ($Stack.Count -gt 0) { @($Stack.Current).IndexOf($Current) + 1 }
+            $ExistsAt = if ($Stack.Count -gt 0) { @($Stack.Current).IndexOf($Vertex) + 1 }
             $Stack.Push($Enumerator)
             if ($ExistsAt -gt 0) {
-                $Cycle = @(@($Stack)[0..$ExistsAt].Current).foreach($GetId) -Join ', '
+                $Cycle = (@($Stack)[0..$ExistsAt].Current).foreach{ FormatId $_ } -Join ', '
                 PSError "Circular dependency: $Cycle." 'CircularDependency'
             }
             $Enumerator = $Edges.GetEnumerator()
@@ -179,7 +215,7 @@ while ($Sorted.get_Count() -lt $Input.get_Count()) {
     if ($Stack.Count -gt 0) {
         $Enumerator = $Stack.Pop()
         $Vertex = $Enumerator.Current
-        if ($Vertex -is [ValueType] -or $Vertex -is [String]) { $Vertex = $Lookup[$Vertex] }
+        if ($Vertex -is [ValueType] -or $Vertex -is [String]) { $Vertex = $ById[$Vertex] }
         if (-not $Sorted.Contains($Vertex)) { $Sorted.Add($Vertex) }
     }
     else { $EdgeCount++ }

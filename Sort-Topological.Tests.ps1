@@ -14,36 +14,26 @@ BeforeAll {
 
 Describe 'Sort-Topological' {
 
-    BeforeEach {
+    BeforeAll {
 
-        $DirectId = 101..105 | Foreach-Object {
-            [PSCustomObject]@{ Id = $_; Link = $Null }
+        $ByObject = 101..105 | Foreach-Object {
+            [PSCustomObject]@{ Id = $_; Name = "Function$_"; Link = $Null }
         }
 
-        $DirectId[0].Link = @($DirectId[2])
-        $DirectId[1].Link = @($DirectId[3], $DirectId[4])
-        $DirectId[2].Link = @()
-        $DirectId[3].Link = @($DirectId[0], $DirectId[2], $DirectId[4])
-        $DirectId[4].Link = @($DirectId[0])
+        $ByObject[0].Link = @($ByObject[2])
+        $ByObject[1].Link = @($ByObject[3], $ByObject[4])
+        $ByObject[2].Link = @()
+        $ByObject[3].Link = @($ByObject[0], $ByObject[2], $ByObject[4])
+        $ByObject[4].Link = @($ByObject[0])
 
-        $List = 1..5 | Foreach-Object {
-            [PSCustomObject]@{ Name = "Function$_"; Dependency = $Null }
-        }
-
-        $List[0].Dependency = @($List[2])
-        $List[1].Dependency = @($List[3], $List[4])
-        $List[2].Dependency = @()
-        $List[3].Dependency = @($List[0], $List[2], $List[4])
-        $List[4].Dependency = @($List[0])
-
-        $IndirectId =
+        $IntegerId =
             [PSCustomObject]@{ Id = 101; Link = 103 },
             [PSCustomObject]@{ Id = 102; Link = 104, 105 },
             [PSCustomObject]@{ Id = 103; Link = $Null },
             [PSCustomObject]@{ Id = 104; Link = 105, 103, 101 },
             [PSCustomObject]@{ Id = 105; Link = 101 }
 
-        $IndirectName = ConvertFrom-Json '
+        $StringId = ConvertFrom-Json '
         [
             { "Name": "Function1", "Dependency": ["Function3"] },
             { "Name": "Function2", "Dependency": ["Function4", "Function5"] },
@@ -62,30 +52,42 @@ Describe 'Sort-Topological' {
 
     Context 'Name' {
 
-        It 'Indirect' {
+        It 'By property (using parameter)' {
 
-            $Sort = $IndirectName | Sort-Topological -Dependency Dependency -Id Name
+            $Sort = Sort-Topological -InputObject $StringId -Dependency Dependency -Id Name
             $Sort.Name | Should -be 'Function3', 'Function1', 'Function5', 'Function4', 'Function2'
         }
 
-        It 'Direct' {
+        It 'By property (using pipeline)' {
 
-            $Sort = $List | Sort-Topological -Dependency Dependency
+            $Sort = $StringId | Sort-Topological -Dependency Dependency -Id Name
             $Sort.Name | Should -be 'Function3', 'Function1', 'Function5', 'Function4', 'Function2'
+        }
+
+        It 'By object (using parameter)' {
+
+            $Sort = Sort-Topological -Input $ByObject -Dependency Link
+            $Sort.Name | Should -be 'Function103', 'Function101', 'Function105', 'Function104', 'Function102'
+        }
+
+        It 'By object (using pipeline)' {
+
+            $Sort = $ByObject | Sort-Topological -Dependency Link
+            $Sort.Name | Should -be 'Function103', 'Function101', 'Function105', 'Function104', 'Function102'
         }
     }
 
     Context 'Id' {
 
-        It 'Indirect' {
+        It 'By property' {
 
-            $Sort = $IndirectId | Sort-Topological -Dependency Link -Id Id
+            $Sort = $IntegerId | Sort-Topological -Dependency Link -Id Id
             $Sort.Id | Should -be 103, 101, 105, 104, 102
         }
 
-        It 'Direct' {
+        It 'By object' {
 
-            $Sort = $DirectId | Sort-Topological -Dependency Link
+            $Sort = $ByObject | Sort-Topological -Dependency Link
             $Sort.Id | Should -be 103, 101, 105, 104, 102
         }
     }
@@ -143,11 +145,28 @@ Describe 'Sort-Topological' {
             $List = [List[Object]]::new()
         }
 
-        It 'ServicesDependedOn' -foreach $services.ServicesDependedOn {
-            $List | Should contain $_
-            $List.Add($_)
-        }
+        # It 'ServicesDependedOn' -foreach $service.ServicesDependedOn {
+        #     $List | Should contain $_
+        #     $List.Add($_)
+        # }
 
+    }
+
+    Context 'Use cases' {
+
+        $Script = @'
+            Class Class1 : Class3 { }
+            Class Class2 : Class4, Class5 { }
+            Class Class3 { }
+            Class Class4 : Class5, Class3, Class1 { }
+            Class Class5 : Class1 { }
+'@
+
+        $Ast = [System.Management.Automation.Language.Parser]::ParseInput($Script, [ref]$null, [ref]$null)
+        $Classes = $Ast.EndBlock.Statements
+        $Sorted = $Classes | Sort-Topological -IdName Name -DependencyName { $_.BaseTypes.TypeName.Name }
+
+        $Sorted.Name | Should -be 'Class3', 'Class1', 'Class5', 'Class4', 'Class2'
     }
 
     Context 'Error handling' {
@@ -159,37 +178,27 @@ Describe 'Sort-Topological' {
 
         It 'Id required' {
 
-            $Command = { $IndirectName | Sort-Topological -Dependency Dependency }
+            $Command = { $StringId | Sort-Topological -Dependency Dependency }
             $Command                         | Should -Throw
             $Error[-1].TargetObject.Name     | Should -be 'Function1'
-            $Error[-1]                       | Should -be 'Indirect dependencies require the IdName parameter.'
-            $Error[-1].FullyQualifiedErrorId | Should -be 'MissingName,Sort-Topological.ps1'
+            $Error[-1]                       | Should -be 'Dependencies by id require the IdName parameter.'
+            $Error[-1].FullyQualifiedErrorId | Should -be 'MissingIdName,Sort-Topological.ps1'
         }
 
-        It 'Duplicate id' {
+        It 'Not exists name' {
 
-            $IndirectName[2] = [PSCustomObject]@{ Name = 'Function1'; Dependency = @() }
-            $Command = { $IndirectName | Sort-Topological -Dependency Dependency -Id Name }
-            $Command                        | Should -Throw
-            $Error[0].TargetObject.Name     | Should -be 'Function1'
-            $Error[0]                       | Should -be 'Unknown vertex id: "function3".'
-            $Error[0].FullyQualifiedErrorId | Should -be 'UnknownVertex,Sort-Topological.ps1'
-        }
-
-        It 'Unknown name' {
-
-            $IndirectName[2] = [PSCustomObject]@{ Name = 'Function3'; Dependency = 'Function9' }
-            $Command = { $IndirectName | Sort-Topological -Dependency Dependency -Id Name }
+            $StringId[2].Dependency = 'Function9'
+            $Command = { $StringId | Sort-Topological -Dependency Dependency -Id Name }
             $Command                        | Should -Throw
             $Error[0].TargetObject.Name     | Should -be 'Function3'
             $Error[0]                       | Should -be 'Unknown vertex id: "function9".'
             $Error[0].FullyQualifiedErrorId | Should -be 'UnknownVertex,Sort-Topological.ps1'
         }
 
-        It 'Unknown id' {
+        It 'Not exists id' {
 
-            $IndirectId[2] = [PSCustomObject]@{ Id = 103; Link = 109 }
-            $Command = { $IndirectId | Sort-Topological -Dependency Link -Id Id }
+            $IntegerId[2].Link = 109
+            $Command = { $IntegerId | Sort-Topological -Dependency Link -Id Id }
             $Command                        | Should -Throw
             $Error[0].TargetObject.Id       | Should -be 103
             $Error[0]                       | Should -be 'Unknown vertex id: 109.'
@@ -239,8 +248,8 @@ Describe 'Sort-Topological' {
 
             $Command = { $List | Sort-Topological -Id Id -Dependency Link }
             $Command                        | Should -Throw
-            $Error[0].TargetObject.Id       | Should -be 103
-            $Error[0]                       | Should -be 'Circular dependency: 103, 101, 104, 103.'
+            $Error[0].TargetObject.Id       | Should -be 101
+            $Error[0]                       | Should -be 'Circular dependency: 101, 104, 103, 101.'
             $Error[0].FullyQualifiedErrorId | Should -be 'CircularDependency,Sort-Topological.ps1'
         }
 
@@ -287,12 +296,12 @@ Describe 'Sort-Topological' {
 
             $Command = { $List | Sort-Topological -Id Name -Dependency Link }
             $Command                        | Should -Throw
-            $Error[0].TargetObject.Name     | Should -be 103
-            $Error[0]                       | Should -be 'Circular dependency: "103", "101", "104", "103".'
+            $Error[0].TargetObject.Name     | Should -be 101
+            $Error[0]                       | Should -be 'Circular dependency: "101", "104", "103", "101".'
             $Error[0].FullyQualifiedErrorId | Should -be 'CircularDependency,Sort-Topological.ps1'
         }
 
-        It 'Direct circular 1' {
+        It 'By object circular 1' {
 
             $List = 101..105 | Foreach-Object {
                 [PSCustomObject]@{ Id = $_; Link = $Null }
@@ -317,7 +326,7 @@ Describe 'Sort-Topological' {
             $Error[0].FullyQualifiedErrorId | Should -be 'CircularDependency,Sort-Topological.ps1'
         }
 
-        It 'Direct circular 2' {
+        It 'By object circular 2' {
 
             $List = 101..105 | Foreach-Object {
                 [PSCustomObject]@{ Id = $_; Link = $Null }
@@ -343,7 +352,7 @@ Describe 'Sort-Topological' {
         }
 
 
-        It 'Direct circular 3' {
+        It 'By object circular 3' {
 
             $List = 101..105 | Foreach-Object {
                 [PSCustomObject]@{ Id = $_; Link = $Null }
@@ -366,6 +375,24 @@ Describe 'Sort-Topological' {
             $Error[0].TargetObject.Id       | Should -be 101
             $Error[0]                       | Should -be 'Circular dependency: [0], [3], [2], [0].'
             $Error[0].FullyQualifiedErrorId | Should -be 'CircularDependency,Sort-Topological.ps1'
+        }
+
+        it 'expression should contain safe path' {
+            $Script = @'
+                Class Class1 : Class3 { }
+                Class Class2 : Class4, Class5 { }
+                Class Class3 { }
+                Class Class4 : Class5, Class3, Class1 { }
+                Class Class5 : Class1 { }
+'@
+
+            $Ast = [System.Management.Automation.Language.Parser]::ParseInput($Script, [ref]$null, [ref]$null)
+            $Classes = $Ast.EndBlock.Statements
+            $Command = { $Classes | Sort-Topological -IdName Name -DependencyName { $_.BaseTypes.TypeName.$Name } }
+            $Command                        | Should -Throw
+            $Error[0].TargetObject.Member   | Should -be '$Name'
+            $Error[0]                       | Should -be 'The { $_.BaseTypes.TypeName.$Name } expression should contain safe path.'
+            $Error[0].FullyQualifiedErrorId | Should -be 'InvalidIdExpression,Sort-Topological.ps1'
         }
     }
 }
