@@ -2,7 +2,6 @@
 .Version 0.1.1
 .Guid 19631007-48a4-4acc-b0bc-c1a23796eb24
 .Author Ronald Bode (iRon)
-.Description Orders vertices such that for every directed edge u-v, vertex u comes before v in the ordering.
 .CompanyName PowerSnippets.com
 .Copyright Ronald Bode (iRon)
 .Tags Sort Topological Dependency Vertex Edge
