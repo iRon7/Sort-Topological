@@ -95,6 +95,7 @@ If the EdgeName is a script block, the script block is executed for each vertex 
 > [!IMPORTANT]
 > To prevent code injection, the script block should only contain safe paths in the form of
 > `$_.<verbatim path>` or `$PSItem.<verbatim path>`, e.g.: `$_.BaseTypes.TypeName.Name`.
+> Any other type is converted to a `[String]` type.
 
 There are two ways a dependency list might be setup:
 
@@ -103,11 +104,11 @@ There are two ways a dependency list might be setup:
 
 The Sort-Topological cmdlet automatically recognizes each way.
 
-**By property (id)**
+#### By property (id)
 Each dependency in the list is linked to a vertex (object node) by an id or a name.
 For instance a class extension which is depended on a base class that is defined by the base class *name*.
 
-**By object**
+#### By object
 Each dependency in the list directly refers to an other (vertex) object in the `$InputObject` list.
 For instance the [`DependentServices` property][1] of a [`ServiceController` object][2] retrieved from
 [Get-Service] cmdlet that contains a (recursive) list of other service *objects* that are directly linked
