@@ -21,7 +21,8 @@
 Sort-Topological
 
 .DESCRIPTION
-Orders vertices such that for every directed edge u-v, vertex u comes before v in the ordering.
+Orders objects (vertices) such that for every directed dependency (edge u-v),
+the object dependent on (vertex u) comes before the object that is dependent on it (vertex v) in the ordering.
 
 .INPUTS
 PSCustomObject[]
