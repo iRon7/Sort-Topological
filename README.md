@@ -105,6 +105,7 @@ If the EdgeName is a script block, the script block is executed for each vertex 
 > [!IMPORTANT]
 > To prevent code injection, the script block should only contain safe paths in the form of
 > `$_.<verbatim path>` or `$PSItem.<verbatim path>`, e.g.: `$_.BaseTypes.TypeName.Name`.
+> Any other type is converted to a `[String]` type.
 
 There are two ways a dependency list might be setup:
 
