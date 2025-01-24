@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.Version 0.1.1
+.Version 0.1.2
 .Guid 19631007-48a4-4acc-b0bc-c1a23796eb24
 .Author Ronald Bode (iRon)
 .CompanyName PowerSnippets.com
@@ -151,9 +151,7 @@ Using Namespace System.Collections.Generic
     [Parameter(Position = 1)][Alias('NameId')][String]$IdName
 )
 
-function PSError($Exception, $Id = 'TopologicalSortError', $Target = $Vertex, $Category = 'InvalidArgument') {
-    $PSCmdlet.ThrowTerminatingError([ErrorRecord]::new($Exception, $Id, $Category, $Target))
-}
+function Throw-Error($ErrorRecord) { $PSCmdlet.ThrowTerminatingError($ErrorRecord) }
 
 if ($EdgeName -is [ScriptBlock]) { # Prevent code injection
     $Ast = [System.Management.Automation.Language.Parser]::ParseInput($EdgeName, [ref]$null, [ref]$null)
@@ -162,7 +160,8 @@ if ($EdgeName -is [ScriptBlock]) { # Prevent code injection
         $Expression = $Expression.Expression
     }
     if ($Expression -isnot [VariableExpressionAst] -or $Expression.VariablePath.UserPath -notin '_', 'PSItem') {
-        PSError "The { $Expression } expression should contain safe path." 'InvalidIdExpression' $Expression
+        $Message = "The { $Expression } expression should contain safe path."
+        Throw-Error ([ErrorRecord]::new($Message, 'InvalidIdExpression', 'InvalidArgument', $Expression))
     }
 }
 elseif ($Null -ne $IdName -and $IdName -isnot [String]) { $IdName = "$IdName" }
@@ -191,7 +190,10 @@ while ($Sorted.get_Count() -lt $List.get_Count()) {
         if ($Edges -isnot [iList]) { $Edges = @($Edges) }
         if ($Null -eq $ById -and $Edges.Count -gt 0) {
             if ($Edges[0] -is [ValueType] -or $Edges[0] -is [String]) {
-                if (-not $IdName) { PSError 'Dependencies by id require the IdName parameter.' 'MissingIdName' }
+                if (-not $IdName) {
+                    $Message = 'Dependencies by id require the IdName parameter.'
+                    Throw-Error ([ErrorRecord]::new($Message, 'MissingIdName', 'InvalidArgument', $Vertex))
+                }
                 $ById = @{}
                 foreach ($Item in $List) { $ById[$Item.PSObject.Properties[$IdName].Value] = $Item }
             } else { $ById = $False }
@@ -200,15 +202,19 @@ while ($Sorted.get_Count() -lt $List.get_Count()) {
             $Ids = $Edges; $Edges = [List[Object]]::new()
             foreach ($Id in $Ids) {
                 if ($Null -eq $Id) { } elseif ($ById.contains($Id)) { $Edges.Add($ById[$Id]) }
-                else{ PSError "Unknown vertex id: $(FormatId $Id)." 'UnknownVertex' }
+                else {
+                    $Message = "Unknown vertex id: $(FormatId $Id)."
+                    Write-Error ([ErrorRecord]::new($Message, 'UnknownVertex', 'InvalidArgument', $Vertex))
+                }
+
             }
         }
         if ($Stack.Count -gt 0 -or $Edges.Count -eq $EdgeCount) {
-            $ExistsAt = if ($Stack.Count -gt 0) { @($Stack.Current).IndexOf($Vertex) + 1 }
+            $At = if ($Stack.Count -gt 0) { @($Stack.Current).IndexOf($Vertex) + 1 }
             $Stack.Push($Enumerator)
-            if ($ExistsAt -gt 0) {
-                $Cycle = (@($Stack)[0..$ExistsAt].Current).foreach{ FormatId $_ } -Join ', '
-                PSError "Circular dependency: $Cycle." 'CircularDependency'
+            if ($At -gt 0) {
+                $Message = "Circular dependency: $((@($Stack)[0..$At].Current).foreach{ FormatId $_ } -Join ', ')."
+                Throw-Error ([ErrorRecord]::new($Message, 'CircularDependency', 'InvalidArgument', $Vertex))
             }
             $Enumerator = $Edges.GetEnumerator()
         }
