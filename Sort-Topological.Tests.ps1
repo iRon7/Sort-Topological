@@ -7,14 +7,14 @@ param ()
 
 Set-Alias -Name Sort-Topological -Value .\Sort-Topological.ps1
 
-BeforeAll {
-
-   Set-StrictMode -Version Latest
-}
-
 Describe 'Sort-Topological' {
 
-    BeforeAll {
+    BeforeEach {
+
+        Set-StrictMode -Version Latest
+     }
+
+     BeforeAll {
 
         $ByObject = 101..105 | Foreach-Object {
             [PSCustomObject]@{ Id = $_; Name = "Function$_"; Link = $Null }
@@ -188,8 +188,7 @@ Describe 'Sort-Topological' {
         It 'Not exists name' {
 
             $StringId[2].Dependency = 'Function9'
-            $Command = { $StringId | Sort-Topological -Dependency Dependency -Id Name }
-            $Command                        | Should -Throw
+            $Null = $StringId | Sort-Topological -Dependency Dependency -Id Name -ErrorAction SilentlyContinue
             $Error[0].TargetObject.Name     | Should -be 'Function3'
             $Error[0]                       | Should -be 'Unknown vertex id: "function9".'
             $Error[0].FullyQualifiedErrorId | Should -be 'UnknownVertex,Sort-Topological.ps1'
@@ -198,8 +197,8 @@ Describe 'Sort-Topological' {
         It 'Not exists id' {
 
             $IntegerId[2].Link = 109
-            $Command = { $IntegerId | Sort-Topological -Dependency Link -Id Id }
-            $Command                        | Should -Throw
+
+            $Null = $IntegerId | Sort-Topological -Dependency Link -Id Id -ErrorAction SilentlyContinue
             $Error[0].TargetObject.Id       | Should -be 103
             $Error[0]                       | Should -be 'Unknown vertex id: 109.'
             $Error[0].FullyQualifiedErrorId | Should -be 'UnknownVertex,Sort-Topological.ps1'
@@ -393,6 +392,33 @@ Describe 'Sort-Topological' {
             $Error[0].TargetObject.Member   | Should -be '$Name'
             $Error[0]                       | Should -be 'The { $_.BaseTypes.TypeName.$Name } expression should contain safe path.'
             $Error[0].FullyQualifiedErrorId | Should -be 'InvalidIdExpression,Sort-Topological.ps1'
+        }
+    }
+
+    Context 'Issues' {
+
+
+        It '#1 `UnknownVertex` error should be non-terminating' {
+            $Script = @'
+                Class Class1 : Class3 { }
+                Class Class2 : Class4, Class5 { }
+                Class Class3 { }
+                Class Class4 : Class5, Class3, Class1 { }
+                Class Class5 : Class1 { }
+                class ClassX : IComparable { }
+'@
+
+            $Error.Clear()
+            Set-StrictMode -Off # prevent native "The property 'TypeName' cannot be found on this object." error
+            $Ast = [System.Management.Automation.Language.Parser]::ParseInput($Script, [ref]$null, [ref]$null)
+            $Classes = $Ast.EndBlock.Statements
+            $Command = { $Classes | Sort-Topological -IdName Name -DependencyName { $_.BaseTypes.TypeName.Name } -ErrorAction SilentlyContinue }
+            $Command | Should -Not -Throw
+            $Error[0].TargetObject.Name     | Should -be 'ClassX'
+            $Error[0]                       | Should -be 'Unknown vertex id: "IComparable".'
+            $Error[0].FullyQualifiedErrorId | Should -be 'UnknownVertex,Sort-Topological.ps1'
+            $Sorted = $Classes | Sort-Topological -IdName Name -DependencyName { $_.BaseTypes.TypeName.Name } -ErrorAction SilentlyContinue
+            $Sorted.Name | Should -be 'Class3', 'ClassX', 'Class1', 'Class5', 'Class4', 'Class2'
         }
     }
 }
