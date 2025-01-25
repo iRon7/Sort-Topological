@@ -1,5 +1,5 @@
 <#PSScriptInfo
-.Version 0.1.2
+.Version 0.1.3
 .Guid 19631007-48a4-4acc-b0bc-c1a23796eb24
 .Author Ronald Bode (iRon)
 .CompanyName PowerSnippets.com
@@ -185,9 +185,9 @@ while ($Sorted.get_Count() -lt $List.get_Count()) {
         $Vertex = $Enumerator.Current
         if($Sorted.Contains($Vertex)) { continue }
         $Edges = [List[Object]]::new()
-        if ($EdgeName -is [ScriptBlock]) { $Edges = $Vertex.foreach($EdgeName) }
+        if ($EdgeName -is [ScriptBlock]) { $Edges = $Vertex.foreach($EdgeName).where{ $Null -ne $_ } }
         else { $Edges = $Vertex.PSObject.Properties[$EdgeName].Value }
-        if ($Edges -isnot [iList]) { $Edges = @($Edges) }
+        if ($Null -eq $Edges) { $Edges = @() } elseif ($Edges -isnot [iList]) { $Edges = @($Edges) }
         if ($Null -eq $ById -and $Edges.Count -gt 0) {
             if ($Edges[0] -is [ValueType] -or $Edges[0] -is [String]) {
                 if (-not $IdName) {
