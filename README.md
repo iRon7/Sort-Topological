@@ -20,7 +20,7 @@ the object dependent on (vertex u) comes before the object that is dependent on 
 
 ## Examples
 
-### Example 1: Custom list with dependencies
+### <a id="example-1"><a id="example-custom-list-with-dependencies">Example 1: Custom list with dependencies</a></a>
 
 
 Sorting the following list of objects with dependencies:
@@ -48,7 +48,7 @@ Results in:
 102 {104, 105}
 ```
 
-### Example 2: Class extension dependencies
+### <a id="example-2"><a id="example-class-extension-dependencies">Example 2: Class extension dependencies</a></a>
 
 
 Consider a list of classes where some of the classes are extended (dependent) on other classes.
@@ -74,7 +74,7 @@ Class4
 Class2
 ```
 
-### Example 3: Topological sort of services
+### <a id="example-3"><a id="example-topological-sort-of-services">Example 3: Topological sort of services</a></a>
 
 Order the service list based on the `ServicesDependedOn` property.
 
@@ -85,20 +85,23 @@ $Ordered = $Services | Sort-Topological -Dependency ServicesDependedOn
 
 ## Parameters
 
-### <a id="-inputobject">**`-InputObject <Object>`**</a>
+### <a id="-inputobject">`-InputObject` <a href="https://docs.microsoft.com/en-us/dotnet/api/System.Object">&lt;Object&gt;</a></a>
 
 A list of objects to be topologically sorted.
 
-<table>
-<tr><td>Type:</td><td><a href="https://docs.microsoft.com/en-us/dotnet/api/System.Object">Object</a></td></tr>
-<tr><td>Mandatory:</td><td>True</td></tr>
-<tr><td>Position:</td><td>Named</td></tr>
-<tr><td>Default value:</td><td></td></tr>
-<tr><td>Accept pipeline input:</td><td>False</td></tr>
-<tr><td>Accept wildcard characters:</td><td>False</td></tr>
-</table>
+```powershell
+Name:                       -InputObject
+Aliases:                    # None
+Type:                       [Object]
+Value (default):            # Undefined
+Parameter sets:             # All
+Mandatory:                  True
+Position:                   # Named
+Accept pipeline input:      False
+Accept wildcard characters: False
+```
 
-### <a id="-edgename">**`-EdgeName <Object>`**</a>
+### <a id="-edgename">`-EdgeName` <a href="https://docs.microsoft.com/en-us/dotnet/api/System.Object">&lt;Object&gt;</a></a>
 
 The name (or path) of the property that contains the dependency list.
 If the EdgeName is a script block, the script block is executed for each vertex to retrieve the dependency list.
@@ -139,16 +142,19 @@ $ByObject[3].Link = @($ByObject[0], $ByObject[2], $ByObject[4])
 $ByObject[4].Link = @($ByObject[0])
 ```
 
-<table>
-<tr><td>Type:</td><td><a href="https://docs.microsoft.com/en-us/dotnet/api/System.Object">Object</a></td></tr>
-<tr><td>Mandatory:</td><td>True</td></tr>
-<tr><td>Position:</td><td>Named</td></tr>
-<tr><td>Default value:</td><td></td></tr>
-<tr><td>Accept pipeline input:</td><td>False</td></tr>
-<tr><td>Accept wildcard characters:</td><td>False</td></tr>
-</table>
+```powershell
+Name:                       -EdgeName
+Aliases:                    -DependencyName
+Type:                       [Object]
+Value (default):            # Undefined
+Parameter sets:             # All
+Mandatory:                  True
+Position:                   # Named
+Accept pipeline input:      False
+Accept wildcard characters: False
+```
 
-### <a id="-idname">**`-IdName <String>`**</a>
+### <a id="-idname">`-IdName` <a href="https://docs.microsoft.com/en-us/dotnet/api/System.String">&lt;String&gt;</a></a>
 
 The name of the property that contains the property name used to identify the object in the `InputObject` list
 The `IdName` parameter is required when the dependencies are linked **by property (id)**.
@@ -157,14 +163,17 @@ The `IdName` parameter is required when the dependencies are linked **by propert
 > The `IdName` is not required in case the dependencies are linked **by object**.
 > Yet, supplying the `IdName` might help to easier identify an object in a (circular) sort error message.
 
-<table>
-<tr><td>Type:</td><td><a href="https://docs.microsoft.com/en-us/dotnet/api/System.String">String</a></td></tr>
-<tr><td>Mandatory:</td><td>False</td></tr>
-<tr><td>Position:</td><td>Named</td></tr>
-<tr><td>Default value:</td><td></td></tr>
-<tr><td>Accept pipeline input:</td><td>False</td></tr>
-<tr><td>Accept wildcard characters:</td><td>False</td></tr>
-</table>
+```powershell
+Name:                       -IdName
+Aliases:                    -NameId
+Type:                       [String]
+Value (default):            # Undefined
+Parameter sets:             # All
+Mandatory:                  False
+Position:                   # Named
+Accept pipeline input:      False
+Accept wildcard characters: False
+```
 
 ## Inputs
 
@@ -176,8 +185,10 @@ PSCustomObject[]
 
 ## Related Links
 
-* 1: [ServiceController][1]
-* 2: [DependentServices][2]
+* [ServiceController](https://learn.microsoft.com/en-us/dotnet/api/system.serviceprocess.servicecontroller.dependentservices)
+* [DependentServices](https://learn.microsoft.com/dotnet/api/system.serviceprocess.servicecontroller)
+<!-- -->
+
 
 [1]: https://learn.microsoft.com/en-us/dotnet/api/system.serviceprocess.servicecontroller.dependentservices "ServiceController"
 [2]: https://learn.microsoft.com/dotnet/api/system.serviceprocess.servicecontroller "DependentServices"
